@@ -33,6 +33,7 @@ class UserStateManager:
                             current_week=state_data.get("current_week", 1),
                             current_day=state_data.get("current_day"),
                             split_configured=state_data.get("split_configured", False),
+                            custom_exercise_sets=state_data.get("custom_exercise_sets", {}),
                         )
             except Exception as e:
                 print(f"Error loading user states: {e}")
@@ -50,6 +51,7 @@ class UserStateManager:
                     "current_week": state.current_week,
                     "current_day": state.current_day,
                     "split_configured": state.split_configured,
+                    "custom_exercise_sets": state.custom_exercise_sets,
                 }
 
             with open(self.storage_path, "w") as f:

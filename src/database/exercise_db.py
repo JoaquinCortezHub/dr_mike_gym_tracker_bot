@@ -2,7 +2,10 @@
 import csv
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.models.exercise import UserState
 
 from src.models.exercise import Exercise
 
@@ -192,3 +195,110 @@ class ExerciseDatabase:
         for exercise in exercises:
             summary += f"- {exercise}\n"
         return summary
+
+    def _map_category_to_muscle(self, category: str) -> str:
+        """
+        Map internal category to user-facing muscle name.
+
+        Args:
+            category: Internal category name
+
+        Returns:
+            User-facing muscle name in Spanish
+        """
+        # Based on the screenshots, we need to identify muscle groups more precisely
+        # For now, we'll use a simplified mapping
+        mapping = {
+            "Shoulders": "Deltoides",
+            "Chest": "Pecho",
+            "Back": "Dorsal ancho",
+            "Biceps": "Bíceps",
+            "Triceps": "Tríceps",
+            "Legs": "Piernas",
+            "Other": "Otros",
+        }
+        return mapping.get(category, category)
+
+    def _reverse_muscle_mapping(self, muscle_name: str) -> str:
+        """
+        Map user-facing muscle name back to internal category.
+
+        Args:
+            muscle_name: User-facing muscle name
+
+        Returns:
+            Internal category name
+        """
+        reverse_mapping = {
+            "Deltoides": "Shoulders",
+            "Pecho": "Chest",
+            "Dorsal ancho": "Back",
+            "Bíceps": "Biceps",
+            "Tríceps": "Triceps",
+            "Piernas": "Legs",
+            "Otros": "Other",
+        }
+        return reverse_mapping.get(muscle_name, muscle_name)
+
+    def calculate_muscle_group_volumes(self, user_state: "UserState") -> Dict[str, int]:
+        """
+        Calculate total weekly sets per muscle group.
+
+        Args:
+            user_state: User state with custom exercise sets
+
+        Returns:
+            Dictionary mapping muscle names to total weekly sets
+        """
+        volumes: Dict[str, int] = {}
+
+        for exercise in self.get_all_exercises():
+            # Get current sets (custom or default)
+            sets = user_state.get_exercise_sets(exercise)
+
+            # Map category to display name
+            muscle_name = self._map_category_to_muscle(exercise.category)
+
+            if muscle_name not in volumes:
+                volumes[muscle_name] = 0
+            volumes[muscle_name] += sets
+
+        # Sort by volume (descending)
+        return dict(sorted(volumes.items(), key=lambda x: x[1], reverse=True))
+
+    def get_exercises_by_muscle(
+        self, muscle_group: str, user_state: "UserState"
+    ) -> List[tuple[Exercise, int, int]]:
+        """
+        Get exercises for a muscle group with current sets.
+
+        Args:
+            muscle_group: User-facing muscle name
+            user_state: User state with custom exercise sets
+
+        Returns:
+            List of tuples (exercise, current_sets, day)
+        """
+        category = self._reverse_muscle_mapping(muscle_group)
+        exercises = []
+
+        for exercise in self.get_all_exercises():
+            if exercise.category == category:
+                current_sets = user_state.get_exercise_sets(exercise)
+                exercises.append((exercise, current_sets, exercise.day))
+
+        # Sort by day
+        return sorted(exercises, key=lambda x: x[2])
+
+    def get_muscle_groups(self, user_state: "UserState") -> List[tuple[str, int]]:
+        """
+        Get all muscle groups with their total weekly volumes.
+
+        Args:
+            user_state: User state with custom exercise sets
+
+        Returns:
+            List of tuples (muscle_name, total_sets) sorted by volume descending
+        """
+        volumes = self.calculate_muscle_group_volumes(user_state)
+        return [(muscle, sets) for muscle, sets in volumes.items()]
